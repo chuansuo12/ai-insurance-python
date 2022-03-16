@@ -6,7 +6,7 @@ from pandas import DataFrame
 def rf_train(train_data=DataFrame):
     x = get_x(train_data)
     y = get_y(train_data)
-    gbdt = RandomForestClassifier(max_depth=7)
+    gbdt = RandomForestClassifier(max_depth=9)
     gbdt.fit(x, y)
     return gbdt
 

@@ -237,3 +237,8 @@ def rename_column(df=DataFrame):
         '发生金额': 'amountIncurred',
         '纯自费金额': 'pureOutOfPocketAmount'
     }, inplace=True)
+
+
+def loc(df=DataFrame, from_idx=int, to_idx=int, target_file=str):
+    target = df.loc[from_idx:to_idx]
+    target.to_csv(target_file, index=False)

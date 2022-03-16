@@ -44,22 +44,22 @@ train_data = read_file(data_path + 'person_train.csv')
 test_data = read_file(data_path + 'person_test.csv')
 
 # xgboost ------------------------------------------------------------------------------------
-# booster = xgb_train(train_data, test_data)
+booster = xgb_train(train_data, test_data)
 # booster.save_model(data_path + 'models/xg.model')
 
 # booster = read_model(data_path + 'models/xg.model')
-# xgb_test(test_data, booster)
+xgb_test(test_data, booster)
 
 # gbdt -------------------------------------------------------------------------
 gbdt = gbdt_train(train_data)
 gbdt_test(gbdt, test_data)
-feature_importance = list(gbdt.feature_importances_)
+# feature_importance = list(gbdt.feature_importances_)
 
 # random forest ------------------------------------
-# rf = rf_train(train_data)
-# rf_test(rf, test_data)
+rf = rf_train(train_data)
+rf_test(rf, test_data)
 # feature_importance = list(rf.feature_importances_)
 
 # print features -----------------------------------
-print_features(feature_importance, train_data.columns)
+# print_features(feature_importance, train_data.columns)
 print('-----finished ------')

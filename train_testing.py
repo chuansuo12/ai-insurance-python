@@ -29,6 +29,3 @@ def print_features(features, columns):
     table = pt.PrettyTable(field_names=['feature', 'importance'])
     [table.add_row([fea[1], fea[0]]) for fea in sorted_fea]
     print(table)
-
-
-
