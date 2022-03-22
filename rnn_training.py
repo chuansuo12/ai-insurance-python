@@ -5,10 +5,12 @@ from torch.autograd import Variable
 from torch.utils.data import dataset, DataLoader
 import torch.nn.functional as F
 from data_cleaning import *
+from train_testing import cal_score
 
-batch_size = 10
-train_rate = 0.8  # 训练比例
-data_path = '/Users/tengyujia/local-data/ai-smart/rnn_test.csv'
+opt_batch_size = 10
+opt_hidden_size = 50
+opt_train_rate = 0.8  # 训练比例
+data_path = '/Users/tengyujia/local-data/ai-smart/rnn_train.csv'
 
 opt_batch_first = True
 
@@ -45,7 +47,8 @@ class LSTM(nn.Module):
         s = torch.sigmoid(attn_output)
         # logit = self.fc(attn_output)
         # torch.sigmoid(torch.sum(attn_output, dim=1))
-        return torch.sigmoid(torch.sum(attn_output, dim=1))
+        f = self.fc(attn_output)
+        return torch.sigmoid(f.view(-1))
 
 
 class TrainData(dataset.Dataset):
@@ -74,7 +77,7 @@ def group_by_person(dt=DataFrame):
 
 def get_train_dataset(file_path):
     source = read_file(file_path)
-    print(source.head(2))
+    # print(source.head(2))
     source['personId'] = source['personId'] - 352120000000000  # 防止ID过长
     source = source.astype('float32')
     source = (source - source.min()) / (source.max() - source.min())  # 归一化
@@ -92,7 +95,7 @@ def collate_fn(batch):
     # 样本长度排序
     sorted_seq_lengths, perm_idx = seq_lengths.sort(0, descending=True)
     # 标签按顺序调整
-    sorted_ys = torch.FloatTensor([ys[x] for x in perm_idx])
+    sorted_ys = torch.LongTensor([int(ys[x]) for x in perm_idx])
     # 数据按顺序调整
     sorted_xs = [xs[x] for x in perm_idx]
     # padding
@@ -106,33 +109,36 @@ def sigmoid_class(output):
 
 
 pd_config()
-positive_data, negative_data = get_train_dataset(data_path)
+positive_data, negative_data = get_train_dataset(data_path)  # 正例,反例
 
-positive_split_idx = int(positive_data.size * train_rate)
-negative_split_idx = int(negative_data.size * train_rate)
+positive_split_idx = int(positive_data.size * opt_train_rate)
+negative_split_idx = int(negative_data.size * opt_train_rate)
 
 train_x = numpy.append(positive_data[:positive_split_idx], negative_data[:negative_split_idx])
 train_y = numpy.append(numpy.zeros(positive_split_idx, dtype=float), numpy.ones(negative_split_idx, dtype=float))
 
 train_dataset = TrainData(train_x, train_y)
-train_data_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=collate_fn, shuffle=True)
+train_data_loader = DataLoader(train_dataset, batch_size=opt_batch_size, collate_fn=collate_fn, shuffle=True)
 
-model = LSTM(train_x[0].size()[1], 4, 1, 2)
+model = LSTM(train_x[0].size()[1], opt_hidden_size, 1, 2)
 
 criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-2)
 
 # 开始训练
-for idx, (data, lengths, target) in enumerate(train_data_loader):
+for epoch, (data, lengths, target) in enumerate(train_data_loader):
+    optimizer.zero_grad()
     # 前向传播
     out = model(data, lengths)
     sigmoid_output = sigmoid_class(out)
+    # 计算损失
     loss = criterion(sigmoid_output, target)
     # 反向传播
-    optimizer.zero_grad()
     loss.backward()
     optimizer.step()
-    print('Loss: {:.5f}'.format(loss.data))
+    if epoch % 10 == 0:
+        print('targets:{}', target)
+        print('训练集 epoch:{} Loss: {:.5f}'.format(epoch, loss.data))
 
     # print('Epoch: {}, Loss: {:.5f}'.format(e + 1, loss.data[0]))
 
@@ -142,16 +148,27 @@ test_x = numpy.append(positive_data[positive_split_idx:], negative_data[negative
 test_y = numpy.append(numpy.zeros(positive_data.size - positive_split_idx, dtype=float),
                       numpy.ones(negative_data.size - negative_split_idx, dtype=float))
 test_dataset = TrainData(test_x, test_y)
-# test_data_loader = DataLoader(test_dataset, batch_size=batch_size, collate_fn=collate_fn, shuffle=True)
+test_data_loader = DataLoader(test_dataset, batch_size=opt_batch_size, collate_fn=collate_fn, shuffle=True)
 
 # 开始 test
-test_data, test_lengths, test_target = collate_fn(test_dataset)
-pred_test = model(test_data, test_lengths)
-pred_test = pred_test.view(-1).data.numpy()
-for t, p in zip(test_target, pred_test):
-    print(t, p)
+# test_data, test_lengths, test_target = collate_fn(test_dataset)
+# pred_test = model(test_data, test_lengths)
+# pred_test = pred_test.view(-1).data.numpy()
+# for t, p in zip(test_target, pred_test):
+#     print(t, p)
+test_pres = numpy.array([])
+test_targets = numpy.array([])
+losses = []
+for epoch, (data, lengths, target) in enumerate(test_data_loader):
+    pred_test = model(data, lengths)
+    sigmoid_output = sigmoid_class(pred_test)
+    loss = criterion(sigmoid_output, target)
+    pre_score, pre_targets = torch.split(sigmoid_output, 1, dim=1)
+    test_pres = numpy.append(test_pres, pre_targets.view(-1).detach().numpy())
+    test_targets = numpy.append(test_targets, target.detach().numpy())
+    losses.append(loss.data.item())
+    if epoch % 10 == 0:
+        print('测试集 epoch:{} Loss: {:.5f}'.format(epoch, loss.data))
 
-# for data, lengths, target in test_data_loader:
-#     pred_test = model(data, lengths)
-#     pred_test = pred_test.view(-1).data.numpy()
-#     print(target, pred_test)
+print('losses:{}', losses)
+cal_score(test_pres.astype(int), test_targets.astype(int))
