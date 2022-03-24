@@ -2,53 +2,21 @@ import numpy
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
-from torch.utils.data import dataset, DataLoader
+from torch.utils.data import dataset, DataLoader, WeightedRandomSampler
+from focalloss import FocalLoss
 import torch.nn.functional as F
 from data_cleaning import *
 from train_testing import cal_score
+from rnn_model import LSTM
 
-opt_batch_size = 10
-opt_hidden_size = 50
+opt_batch_size = 20
+opt_hidden_size = 96
+opt_num_layers = 2
 opt_train_rate = 0.8  # 训练比例
+opt_lr = 1e-3  # 学习率
 data_path = '/Users/tengyujia/local-data/ai-smart/rnn_train.csv'
 
 opt_batch_first = True
-
-
-class LSTM(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, num_layer):
-        super(LSTM, self).__init__()
-        self.lstm = nn.LSTM(input_size, hidden_size, num_layer, batch_first=opt_batch_first)
-        self.fc = nn.Linear(hidden_size, output_size)
-
-        # 初始时间步和最终时间步的隐藏状态作为全连接层输入
-        self.w_omega = nn.Parameter(torch.Tensor(hidden_size, hidden_size))
-        self.u_omega = nn.Parameter(torch.Tensor(hidden_size, 1))
-
-        nn.init.uniform_(self.w_omega, -0.1, 0.1)
-        nn.init.uniform_(self.u_omega, -0.1, 0.1)
-
-    def attention_net(self, x):  # x:[batch, seq_len, hidden_dim]
-        # 原文中使用了 dropout 此处弃用 https://www.cnblogs.com/cxq1126/p/13504437.html
-        u = torch.tanh(torch.matmul(x, self.w_omega))  # [batch, seq_len, hidden_dim]
-        att = torch.matmul(u, self.u_omega)  # [batch, seq_len, 1]
-        att_score = F.softmax(att, dim=1)
-        scored_x = x * att_score  # [batch, seq_len, hidden_dim]
-        context = torch.sum(scored_x, dim=1)  # [batch, hidden_dim]
-        return context
-
-    def forward(self, x, length_list):
-        # 解决同一 batch 数据变长问题
-        x = nn.utils.rnn.pack_padded_sequence(x, lengths=length_list, batch_first=opt_batch_first)
-        x, _ = self.lstm(x)
-        x, _ = nn.utils.rnn.pad_packed_sequence(x)
-        x = x.permute(1, 0, 2)  # [batch, seq_len, hidden_dim]
-        attn_output = self.attention_net(x)
-        s = torch.sigmoid(attn_output)
-        # logit = self.fc(attn_output)
-        # torch.sigmoid(torch.sum(attn_output, dim=1))
-        f = self.fc(attn_output)
-        return torch.sigmoid(f.view(-1))
 
 
 class TrainData(dataset.Dataset):
@@ -95,7 +63,7 @@ def collate_fn(batch):
     # 样本长度排序
     sorted_seq_lengths, perm_idx = seq_lengths.sort(0, descending=True)
     # 标签按顺序调整
-    sorted_ys = torch.LongTensor([int(ys[x]) for x in perm_idx])
+    sorted_ys = torch.FloatTensor([int(ys[x]) for x in perm_idx])
     # 数据按顺序调整
     sorted_xs = [xs[x] for x in perm_idx]
     # padding
@@ -118,21 +86,32 @@ train_x = numpy.append(positive_data[:positive_split_idx], negative_data[:negati
 train_y = numpy.append(numpy.zeros(positive_split_idx, dtype=float), numpy.ones(negative_split_idx, dtype=float))
 
 train_dataset = TrainData(train_x, train_y)
-train_data_loader = DataLoader(train_dataset, batch_size=opt_batch_size, collate_fn=collate_fn, shuffle=True)
 
-model = LSTM(train_x[0].size()[1], opt_hidden_size, 1, 2)
+data_weight = torch.cat((
+    torch.ones(positive_split_idx) * (1 / positive_split_idx),
+    torch.ones(negative_split_idx) * (1 / negative_split_idx)), 0)
 
-criterion = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-2)
+weight_sampler = WeightedRandomSampler(data_weight, len(data_weight), replacement=True)
+
+train_data_loader = DataLoader(train_dataset, batch_size=opt_batch_size, collate_fn=collate_fn,
+                               sampler=weight_sampler)
+
+model = LSTM(train_x[0].size()[1], opt_hidden_size, 1, opt_num_layers, opt_batch_first)
+
+criterion = nn.BCELoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=opt_lr)
 
 # 开始训练
 for epoch, (data, lengths, target) in enumerate(train_data_loader):
-    optimizer.zero_grad()
+    # optimizer.zero_grad()
     # 前向传播
+    data, target = Variable(data), Variable(target)
+
     out = model(data, lengths)
-    sigmoid_output = sigmoid_class(out)
+    # sigmoid_output = sigmoid_class(out)
     # 计算损失
-    loss = criterion(sigmoid_output, target)
+    loss = criterion(out, target)
+    optimizer.zero_grad()
     # 反向传播
     loss.backward()
     optimizer.step()
@@ -161,10 +140,10 @@ test_targets = numpy.array([])
 losses = []
 for epoch, (data, lengths, target) in enumerate(test_data_loader):
     pred_test = model(data, lengths)
-    sigmoid_output = sigmoid_class(pred_test)
-    loss = criterion(sigmoid_output, target)
-    pre_score, pre_targets = torch.split(sigmoid_output, 1, dim=1)
-    test_pres = numpy.append(test_pres, pre_targets.view(-1).detach().numpy())
+    # sigmoid_output = sigmoid_class(pred_test)
+    loss = criterion(pred_test, target)
+    # pre_score, pre_targets = torch.split(pred_test, 1, dim=1)
+    test_pres = numpy.append(test_pres, pred_test.detach().numpy())
     test_targets = numpy.append(test_targets, target.detach().numpy())
     losses.append(loss.data.item())
     if epoch % 10 == 0:
