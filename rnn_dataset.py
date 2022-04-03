@@ -34,11 +34,14 @@ def get_train_dataset(file_path):
     # print(source.head(2))
     source['personId'] = source['personId'] - 352120000000000  # 防止ID过长
     source = source.astype('float32')
-    low_std_columns = source.std().sort_values().head(30)
+    low_std_columns = source.std().sort_values().head(35)
     if 'classTarget' in low_std_columns:
         low_std_columns.drop(labels='classTarget', inplace=True)
     source.drop(columns=low_std_columns.index, inplace=True)
+    id_target = source[['personId', 'classTarget']]
+    source.drop(columns=['personId', 'classTarget'], inplace=True)
     source = (source - source.mean()) / (source.max() - source.min())  # 归一化
+    source = pd.concat([pd.DataFrame(source), id_target], axis=1)
     source.fillna(value=0, inplace=True)
     x = source.groupby(source['classTarget']).apply(group_by_person).values
     x = sorted(x, key=lambda item: item[0])

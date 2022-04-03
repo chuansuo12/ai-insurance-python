@@ -6,6 +6,18 @@ import math
 RNNS = ['LSTM', 'GRU']
 
 
+class ModelConfig:
+    def __init__(self, name, marker):
+        self.name = name
+        self.marker = marker
+
+    def get_name(self):
+        return self.name
+
+    def get_marker(self):
+        return self.marker
+
+
 class Encoder(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers=1, dropout=0.,
                  bidirectional=True, rnn_type='GRU'):
