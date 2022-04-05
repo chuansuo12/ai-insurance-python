@@ -7,15 +7,23 @@ RNNS = ['LSTM', 'GRU']
 
 
 class ModelConfig:
-    def __init__(self, name, marker):
+    def __init__(self, name, marker, bi, md):
         self.name = name
         self.marker = marker
+        self.bi = bi
+        self.md = md
 
     def get_name(self):
         return self.name
 
     def get_marker(self):
         return self.marker
+
+    def get_bi(self):
+        return self.bi
+
+    def get_md(self):
+        return self.md
 
 
 class Encoder(nn.Module):

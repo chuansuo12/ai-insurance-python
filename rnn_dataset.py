@@ -33,13 +33,11 @@ def get_train_dataset(file_path):
     source = read_file(file_path)
     # print(source.head(2))
     source['personId'] = source['personId'] - 352120000000000  # 防止ID过长
-    source = source.astype('float32')
-    low_std_columns = source.std().sort_values().head(35)
-    if 'classTarget' in low_std_columns:
-        low_std_columns.drop(labels='classTarget', inplace=True)
-    source.drop(columns=low_std_columns.index, inplace=True)
     id_target = source[['personId', 'classTarget']]
     source.drop(columns=['personId', 'classTarget'], inplace=True)
+    source = source.astype('float64')
+    low_std_columns = source.std().sort_values().head(35)
+    source.drop(columns=low_std_columns.index, inplace=True)
     source = (source - source.mean()) / (source.max() - source.min())  # 归一化
     source = pd.concat([pd.DataFrame(source), id_target], axis=1)
     source.fillna(value=0, inplace=True)
@@ -92,3 +90,28 @@ def get_data_loader(data_path, batch_size, train_rate):
     test_data_loader = DataLoader(test_dataset, batch_size=batch_size, collate_fn=collate_fn, shuffle=True)
 
     return train_data_loader, test_data_loader
+
+
+def get_dataset(data_path, train_rate):
+    pd_config()
+    positive_data, negative_data = get_train_dataset(data_path)  # 正例,反例
+
+    positive_split_idx = int(positive_data.size * train_rate)
+    negative_split_idx = int(negative_data.size * train_rate)
+    # 训练数据
+    train_x = numpy.append(positive_data[:positive_split_idx], negative_data[:negative_split_idx])
+    train_y = numpy.append(numpy.zeros(positive_split_idx, dtype=float), numpy.ones(negative_split_idx, dtype=float))
+
+    train_dataset = TrainData(train_x, train_y)
+
+    data_weight = torch.cat((
+        torch.ones(positive_split_idx) * (1 / positive_split_idx),
+        torch.ones(negative_split_idx) * (1 / (negative_split_idx * 2))), 0)
+
+    weight_sampler = WeightedRandomSampler(data_weight, len(data_weight), replacement=True)
+    # 测试数据
+    test_x = numpy.append(positive_data[positive_split_idx:], negative_data[negative_split_idx:])
+    test_y = numpy.append(numpy.zeros(positive_data.size - positive_split_idx, dtype=float),
+                          numpy.ones(negative_data.size - negative_split_idx, dtype=float))
+    test_dataset = TrainData(test_x, test_y)
+    return train_dataset, test_dataset, weight_sampler
