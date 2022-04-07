@@ -11,7 +11,7 @@ import time
 from data_cleaning import *
 
 opt_batch_size = 2
-opt_hidden_size = 32
+opt_hidden_size = 64
 opt_num_layers = 2
 opt_train_rate = 0.8  # 训练比例
 opt_lr = 1e-3  # 学习率
@@ -26,6 +26,7 @@ model_path = dir_path + 'rnn_models/'
 data_path = dir_path + 'rnn_train_v2.csv'
 
 opt_batch_first = True
+opt_output = True
 
 
 def sigmoid_class(output):
@@ -61,7 +62,7 @@ def train(model, data, optimizer, criterion, clip):
         total_loss += float(loss)
         accuracy, confusion_matrix = update_stats(accuracy, confusion_matrix, lgs, target)
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
+        # torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
         optimizer.step()
 
         # print("[Batch]: {}/{} in {:.5f} seconds".format(
@@ -155,8 +156,9 @@ def epoch_train_test(model_config, train_dataset, test_dataset, sampler):
     test_data_loader = DataLoader(
         test_dataset, batch_size=opt_batch_size, collate_fn=collate_fn, shuffle=True)
     result = test(model, criterion, test_data_loader)
-    torch.save(model, model_path + model_config.get_name() + '_F1=' + str(round(result.get_f1(), 4))
-               + '_b=' + str(opt_batch_size) + '_h=' + str(opt_hidden_size) + '_s=' + str(opt_seed))
+    if opt_output:
+        torch.save(model, model_path + model_config.get_name() + '_F1=' + str(round(result.get_f1(), 4))
+                   + '_b=' + str(opt_batch_size) + '_h=' + str(opt_hidden_size) + '_s=' + str(opt_seed))
     return result
 
 
@@ -169,7 +171,7 @@ if __name__ == '__main__':
     ]
     train_data, test_data, weight_sampler = get_dataset(data_path, opt_train_rate)
     # batch_sizes = [2, 4, 8, 16, 32, 64, 128]
-    hidden_sizes = [16, 32, 64, 128]
+    hidden_sizes = [16, 32, 64]
     # max_seed = -1
     # max_f1 = -1
     # for seed in range(0, 100):
@@ -180,7 +182,7 @@ if __name__ == '__main__':
     #         max_seed = seed
     #         max_f1 = f1
     # print('max_seed:{},max_f1:{}'.format(max_seed, max_f1))
-    x_label = 'hidden_size'
+    x_label = 'batch_size'
     plt.figure(layout='constrained')
     plt.xlabel(x_label)
     plt.ylabel('F1')
@@ -193,23 +195,27 @@ if __name__ == '__main__':
             opt_bidirectional = False
         opt_model = model_conf.get_md()
         f1_lst = []
+        # if model_conf.get_bi():
+        #     opt_hidden_size = 32
         for hidden_size in hidden_sizes:
+            # opt_batch_size = batch_size
             if model_conf.get_bi():
                 opt_hidden_size = int(hidden_size / 2)
             else:
                 opt_hidden_size = hidden_size
             cal_result = epoch_train_test(model_conf, train_data, test_data, weight_sampler)
             f1_lst.append(cal_result.get_f1())
-            with open(dir_path + 'result_data/model_result.csv', 'a') as result_file:
-                result_file.write('{},{},{},{},{},{},{}\n'.format(
-                    model_conf.get_name(),
-                    opt_batch_size,
-                    opt_hidden_size,
-                    round(cal_result.get_acc(), 4),
-                    round(cal_result.get_precision(), 4),
-                    round(cal_result.get_recall(), 4),
-                    round(cal_result.get_f1(), 4),
-                ))
+            if opt_output:
+                with open(dir_path + 'result_data/model_result.csv', 'a') as result_file:
+                    result_file.write('{},{},{},{},{},{},{}\n'.format(
+                        model_conf.get_name(),
+                        opt_batch_size,
+                        opt_hidden_size,
+                        round(cal_result.get_acc(), 4),
+                        round(cal_result.get_precision(), 4),
+                        round(cal_result.get_recall(), 4),
+                        round(cal_result.get_f1(), 4),
+                    ))
         plt.plot(hidden_sizes, f1_lst, label=model_conf.get_name(),
                  marker=model_conf.get_marker())
     plt.legend()

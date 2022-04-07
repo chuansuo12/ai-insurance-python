@@ -81,7 +81,7 @@ class Classifier(nn.Module):
         outputs, _ = nn.utils.rnn.pad_packed_sequence(outputs, batch_first=True)
         outputs = outputs.transpose(0, 1)
         if isinstance(hidden, tuple):  # LSTM
-            hidden = hidden[1]  # take the cell state
+            hidden = hidden[0]  # take the cell state
 
         if self.encoder.bidirectional:  # need to concat the last 2 hidden layers
             hidden = torch.cat([hidden[-1], hidden[-2]], dim=1)
