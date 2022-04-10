@@ -115,3 +115,20 @@ def get_dataset(data_path, train_rate):
                           numpy.ones(negative_data.size - negative_split_idx, dtype=float))
     test_dataset = TrainData(test_x, test_y)
     return train_dataset, test_dataset, weight_sampler
+
+
+def get_verify_data(data_path):
+    positive_data, negative_data = get_train_dataset(data_path)
+    positive_split_idx = int(positive_data.size * 0.8)
+    negative_split_idx = int(negative_data.size * 0.8)
+
+    positive_idx = int(positive_data.size * 0.9)
+    negative_idx = int(negative_data.size * 0.9)
+
+    verify_x = numpy.append(positive_data[positive_split_idx:positive_idx],
+                            negative_data[negative_split_idx:negative_idx])
+
+    verify_y = numpy.append(numpy.zeros(positive_idx - positive_split_idx, dtype=float),
+                            numpy.ones(negative_idx - negative_split_idx, dtype=float))
+    verify_dataset = TrainData(verify_x, verify_y)
+    return verify_dataset

@@ -10,7 +10,7 @@ def xgb_config():
 def xgb_train(train_data=DataFrame, test_data=DataFrame):
     params = {
         'booster': 'gbtree',
-        'objective': 'multi:softmax',  # 多分类的问题
+        'objective': 'binary:logistic',  # 二分类概率
         'num_class': 2,  # 类别数，与 multisoftmax 并用
         'gamma': 0.1,  # 用于控制是否后剪枝的参数,越大越保守，一般0.1、0.2这样子。
         'max_depth': 8,  # 构建树的深度，越大越容易过拟合

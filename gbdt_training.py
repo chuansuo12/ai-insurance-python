@@ -18,6 +18,11 @@ def gbdt_test(gbdt=GradientBoostingClassifier, test_data=DataFrame):
     cal_score(y_pre, y)
 
 
+def gbdt_test_per(gbdt=GradientBoostingClassifier, test_data=DataFrame):
+    x = get_x(test_data)
+    return gbdt.predict(x)
+
+
 def get_x(data=DataFrame):
     return data.drop(columns=['classTarget'])
 

@@ -87,7 +87,6 @@ def test(model, criterion, tests):
     model.eval()  # 转换成测试模式
     test_pres = numpy.array([])
     test_targets = numpy.array([])
-    model.eval()
     accuracy, confusion_matrix = 0, numpy.zeros((2, 2), dtype=int)
     t = time.time()
     total_loss = 0
@@ -123,7 +122,7 @@ def test(model, criterion, tests):
     return cal_score(test_pres.astype(int), test_targets.astype(int))
 
 
-def seed_everything(seed, cuda=False):
+def seed_everything(seed=opt_seed, cuda=False):
     # Set the random seed manually for reproducibility.
     numpy.random.seed(seed)
     torch.manual_seed(seed)
@@ -135,23 +134,7 @@ def epoch_train_test(model_config, train_dataset, test_dataset, sampler):
     train_data_loader = DataLoader(
         train_dataset, batch_size=opt_batch_size, collate_fn=collate_fn, sampler=sampler)
     seed_everything(opt_seed)
-
-    encoder = Encoder(
-        train_data_loader.dataset[0][0].size()[1],
-        hidden_size=opt_hidden_size,
-        num_layers=opt_num_layers,
-        dropout=opt_drop_out,
-        bidirectional=opt_bidirectional,
-        rnn_type=opt_model)
-
-    attention_dim = opt_hidden_size if not opt_bidirectional else 2 * opt_hidden_size
-    attention = Attention(attention_dim, attention_dim, attention_dim)
-
-    model = Classifier(encoder, attention, attention_dim, 2)
-    model.to('cpu')
-
-    criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=opt_lr, amsgrad=True)
+    model, criterion, optimizer = get_model(train_data_loader.dataset[0][0].size()[1])
     train(model, train_data_loader, optimizer, criterion, opt_gradient_clipping)
     test_data_loader = DataLoader(
         test_dataset, batch_size=opt_batch_size, collate_fn=collate_fn, shuffle=True)
@@ -160,6 +143,23 @@ def epoch_train_test(model_config, train_dataset, test_dataset, sampler):
         torch.save(model, model_path + model_config.get_name() + '_F1=' + str(round(result.get_f1(), 4))
                    + '_b=' + str(opt_batch_size) + '_h=' + str(opt_hidden_size) + '_s=' + str(opt_seed))
     return result
+
+
+def get_model(input_size):
+    encoder = Encoder(
+        input_size,
+        hidden_size=opt_hidden_size,
+        num_layers=opt_num_layers,
+        dropout=opt_drop_out,
+        bidirectional=opt_bidirectional,
+        rnn_type=opt_model)
+    attention_dim = opt_hidden_size if not opt_bidirectional else 2 * opt_hidden_size
+    attention = Attention(attention_dim, attention_dim, attention_dim)
+    model = Classifier(encoder, attention, attention_dim, 2)
+    model.to('cpu')
+    criterion = nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=opt_lr, amsgrad=True)
+    return model, criterion, optimizer
 
 
 if __name__ == '__main__':
@@ -171,7 +171,7 @@ if __name__ == '__main__':
     ]
     train_data, test_data, weight_sampler = get_dataset(data_path, opt_train_rate)
     # batch_sizes = [2, 4, 8, 16, 32, 64, 128]
-    hidden_sizes = [16, 32, 64]
+    hidden_sizes = [16, 32, 64, 96]
     # max_seed = -1
     # max_f1 = -1
     # for seed in range(0, 100):
