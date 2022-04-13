@@ -94,5 +94,5 @@ class Classifier(nn.Module):
         # linear_combination = torch.mean(outputs, 0)
 
         energy, linear_combination = self.attention(hidden, outputs, outputs)
-        logits = self.decoder(hidden)
+        logits = self.decoder(linear_combination)
         return logits, energy

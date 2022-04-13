@@ -20,7 +20,7 @@ def gbdt_test(gbdt=GradientBoostingClassifier, test_data=DataFrame):
 
 def gbdt_test_per(gbdt=GradientBoostingClassifier, test_data=DataFrame):
     x = get_x(test_data)
-    return gbdt.predict(x)
+    return gbdt.predict_proba(x)
 
 
 def get_x(data=DataFrame):

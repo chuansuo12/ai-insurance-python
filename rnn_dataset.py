@@ -130,5 +130,18 @@ def get_verify_data(data_path):
 
     verify_y = numpy.append(numpy.zeros(positive_idx - positive_split_idx, dtype=float),
                             numpy.ones(negative_idx - negative_split_idx, dtype=float))
-    verify_dataset = TrainData(verify_x, verify_y)
-    return verify_dataset
+    return TrainData(verify_x, verify_y)
+
+
+def get_combine_test_data(data_path):
+    positive_data, negative_data = get_train_dataset(data_path)
+
+    positive_idx = int(positive_data.size * 0.9)
+    negative_idx = int(negative_data.size * 0.9)
+
+    test_x = numpy.append(positive_data[positive_idx:],
+                          negative_data[negative_idx:])
+
+    test_y = numpy.append(numpy.zeros(positive_data.size - positive_idx, dtype=float),
+                          numpy.ones(negative_data.size - negative_idx, dtype=float))
+    return TrainData(test_x, test_y)

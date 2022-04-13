@@ -23,7 +23,7 @@ opt_seed = 3
 
 dir_path = '/Users/tengyujia/local-data/ai-smart/'
 model_path = dir_path + 'rnn_models/'
-data_path = dir_path + 'rnn_train_v2.csv'
+data_path = dir_path + 'rnn_test_part.csv'
 
 opt_batch_first = True
 opt_output = True
@@ -62,7 +62,7 @@ def train(model, data, optimizer, criterion, clip):
         total_loss += float(loss)
         accuracy, confusion_matrix = update_stats(accuracy, confusion_matrix, lgs, target)
         loss.backward()
-        # torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
         optimizer.step()
 
         # print("[Batch]: {}/{} in {:.5f} seconds".format(
@@ -164,14 +164,14 @@ def get_model(input_size):
 
 if __name__ == '__main__':
     models = [
-        ModelConfig('LSTM', '^', False, 'LSTM'),
-        ModelConfig('GRU', 's', False, 'GRU'),
-        ModelConfig('Bi-LSTM', 'o', True, 'LSTM'),
+        # ModelConfig('LSTM', '^', False, 'LSTM'),
+        # ModelConfig('GRU', 's', False, 'GRU'),
+        # ModelConfig('Bi-LSTM', 'o', True, 'LSTM'),
         ModelConfig('Bi-GRU', 'o', True, 'GRU')
     ]
     train_data, test_data, weight_sampler = get_dataset(data_path, opt_train_rate)
     # batch_sizes = [2, 4, 8, 16, 32, 64, 128]
-    hidden_sizes = [16, 32, 64, 96]
+    hidden_sizes = [32, 64, 96]
     # max_seed = -1
     # max_f1 = -1
     # for seed in range(0, 100):
